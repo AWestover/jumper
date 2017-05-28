@@ -130,7 +130,7 @@ What did Winston see in the mirror?", screen_dims[0]*0.1, screen_dims[1]*0.15)
 			else if(this.level == 4) {
 				text("It was a concave mirror,\n\
 so Winston say a smaller inverted version of himself,\n\
-and proceeded to make this virtual image into a real one.", screen_dims[0]*0.1, screen_dims[1]*0.15)
+and proceeded to replicate the real image.", screen_dims[0]*0.1, screen_dims[1]*0.15)
 			}
 			else if(this.level == 5) {
 				text("Once Winston asked the Convex lens \n\
