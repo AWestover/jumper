@@ -182,7 +182,7 @@ function Player() {
 		this.y_acc = 0;	
 		this.ani_state = 0;
 		this.pos = [this.std_pos[0], this.y_pos];	
-		this.invincible = false;
+		this.invincibility = false;
 	}
 	this.on_key_press = function() {
 		if (keyCode == UP_ARROW) {
@@ -190,7 +190,7 @@ function Player() {
 			this.y_vel = -this.jump_speed;
 		}
 		if (key == "i") {
-			this.invincible = true;
+			this.invincibility = true;
 		}
 
 	}
