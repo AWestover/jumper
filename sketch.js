@@ -44,7 +44,7 @@ function draw(){
 		}
 		player.update(dt);
 		level.display();
-		level.run(player.pos, player.dims, dt);
+		level.run(player.pos, player.dims, player.invincibility, dt);
 	}
 	else if (level.envi == "loose") {
 		background(255, 0, 0);
@@ -78,6 +78,7 @@ function Level() {
 		this.envi = 'start';
 		this.obstacles = 1;
 		this.level = 1;
+		this.level_length = 1;  //This is the multiple of screen_dims we want
 		this.dims = screen_dims;
 		name_input = createInput();
 	  	name_input.position(20, 190);
@@ -85,13 +86,12 @@ function Level() {
 	  	continueButton.position(name_input.x + name_input.width, 190);
 	  	continueButton.mousePressed(startPlay);
 	  	this.barriers = [new Barrier()];
-	  	this.barriers[0].initialize();
-	  	this.level_length = 1;  //This is the multiple of screen_dims we want
+	  	this.barriers[0].initialize(this.level_length);
 	  	this.num_clouds = int(this.level_length/0.3);
 	  	this.clouds = [];
 	  	for (var i = 0; i < this.num_clouds; i++) {
 	  		this.clouds.push(new Cloud());
-	  		this.clouds[i].initialize();
+	  		this.clouds[i].initialize(this.level_length);
 	  	}
 	}
 	this.update = function() {
@@ -100,13 +100,14 @@ function Level() {
 		this.obstacles += 1;
 		this.num_clouds = int(this.level_length/0.3);
 		this.level += 1;
+		this.level_length += 1;
 		for (var i = 0; i < this.obstacles; i++) {
 			this.barriers.push(new Barrier());
-			this.barriers[i].initialize();
+			this.barriers[i].initialize(this.level_length);
 		}
 		for (var i = 0; i < int(this.level_length/0.3); i++) {
 	  		this.clouds.push(new Cloud());
-	  		this.clouds[i].initialize();
+	  		this.clouds[i].initialize(this.level_length);
 	  	}
 	}
 	this.display = function() {
@@ -120,6 +121,25 @@ function Level() {
 			else if(this.level == 2) {
 				text("OK the game is basicly over now.", screen_dims[0]*0.5, screen_dims[1]*0.15)
 			}
+			else if(this.level == 3) {
+				text("Winston asked \n(from a far distance away)\n\
+his mirror 'Mirror mirror on the wall how can I become really cool?'\n\
+3 hours later Winston was found dead,\ncrushed and hanging from the ceiling.\n\
+What did Winston see in the mirror?", screen_dims[0]*0.1, screen_dims[1]*0.15)
+			}
+			else if(this.level == 4) {
+				text("It was a concave mirror,\n\
+so Winston say a smaller inverted version of himself,\n\
+and proceeded to make this virtual image into a real one.", screen_dims[0]*0.1, screen_dims[1]*0.15)
+			}
+			else if(this.level == 5) {
+				text("Once Winston asked the Convex lens \n\
+how it always sayed so foccused.", screen_dims[0]*0.1, screen_dims[1]*0.15)
+			}
+			else if(this.level == 6) {
+				text("The lens answered, \n\
+I won't focus when the object distance is really small.", screen_dims[0]*0.1, screen_dims[1]*0.15)
+			}
 			for (var i = 0; i < this.obstacles; i++) {
 				this.barriers[i].display();
 			}
@@ -128,7 +148,7 @@ function Level() {
 			}
 		}
 	}
-	this.run = function(user_pos, user_dims, dt) {
+	this.run = function(user_pos, user_dims, user_invincibility, dt) {
 		for (var i = 0; i < this.num_clouds; i++) {
 			this.clouds[i].update(dt);
 		}
@@ -136,7 +156,9 @@ function Level() {
 		for (var i = 0; i < this.obstacles; i++) {
 			this.barriers[i].update(dt);
 			if (collide(this.barriers[i].perceived_pos, user_pos, this.barriers[i].dims, user_dims)) {
-				this.envi = "loose";
+				if (user_invincibility == false) {
+					this.envi = "loose";
+				}
 			}
 			// The extra seemingly random addition in the conitional below buys a little extra delay time before the win
 			if (this.barriers[i].perceived_pos[0] + this.barriers[i].dims[0] + screen_dims[0]*0.3> user_pos[0]) {  
@@ -160,12 +182,17 @@ function Player() {
 		this.y_acc = 0;	
 		this.ani_state = 0;
 		this.pos = [this.std_pos[0], this.y_pos];	
+		this.invincible = false;
 	}
 	this.on_key_press = function() {
 		if (keyCode == UP_ARROW) {
 			if (this.y_pos >= this.std_pos[1])
 			this.y_vel = -this.jump_speed;
 		}
+		if (key == "i") {
+			this.invincible = true;
+		}
+
 	}
 	this.update = function(dt) {
 		if (this.y_pos >= this.std_pos[1] && this.y_vel > 0) {
@@ -201,11 +228,11 @@ function collide(pa, pb, da, db) {
 
 
 function Barrier() {
-	this.initialize = function() {
+	this.initialize = function(level_length) {
 		var rand_bar_width = int(random(screen_dims[0]*0.05, screen_dims[0]*0.15));
 		var rand_bar_height = int(random(screen_dims[1]*0.05, screen_dims[1]*0.15));  
 		this.dims = [rand_bar_width, rand_bar_height]
-		this.x = random(screen_dims[0]*3, screen_dims[0]*5);
+		this.x = random(screen_dims[0], screen_dims[0]*level_length);
 		this.image_state = 0;
 		this.offset = 0;
 		this.perceived_pos = [this.x-this.offset, screen_dims[1]-this.dims[1]];
@@ -222,11 +249,11 @@ function Barrier() {
 
 
 function Cloud() {
-	this.initialize = function() {
+	this.initialize = function(level_length) {
 		var rand_bar_width = int(random(screen_dims[0]*0.05, screen_dims[0]*0.15));
 		var rand_bar_height = int(random(screen_dims[1]*0.05, screen_dims[1]*0.15));  
 		this.dims = [rand_bar_width, rand_bar_height]
-		this.x = random(screen_dims[0]*0.5, screen_dims[0]*5);
+		this.x = random(0, screen_dims[0]*level_length);
 		this.image_state = 0;
 		this.offset = 0;
 		this.perceived_pos = [this.x-this.offset, int(this.dims[1]*random(0.6,0.7))];
