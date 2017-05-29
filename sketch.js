@@ -1,5 +1,6 @@
 // Coded by Alek Westover
 //Avoid the obstacles
+// Take a poll about the graphics UI and overlaping stuff
 
 //Constants and imported stuff
 var screen_dims = [];
@@ -22,6 +23,7 @@ var dt = 0.5;
 var pause = false;
 var last_non_jump_click = 0;
 var first_lag_time = 100; //Milliseconds 
+var deep_walk_multiplier = 1.05;
 
 
 function setup() {
@@ -105,6 +107,36 @@ function touchStarted() {
 }
 
 
+function lenient_collide(pa, pb, da, db) {
+  db = [db[0]*0.9, db[1]*0.9]
+  da = [da[0]*0.9, da[1]*0.9]
+  var right_x = pa[0] < pb[0] + db[0];
+  var left_x = pb[0] < pa[0] + da[0];
+  var top_y = pb[1] < pa[1] + da[1];
+  var bottom_y = pa[1] < pb[1] + db[1];
+  if (right_x && left_x && top_y && bottom_y) {
+    return true
+  }
+  else {
+    return false
+  }
+}
+
+
+function collide(pa, pb, da, db) {
+  var right_x = pa[0] < pb[0] + db[0];
+  var left_x = pb[0] < pa[0] + da[0];
+  var top_y = pb[1] < pa[1] + da[1];
+  var bottom_y = pa[1] < pb[1] + db[1];
+  if (right_x && left_x && top_y && bottom_y) {
+    return true
+  }
+  else {
+    return false
+  }
+}
+
+
 function resumeClickReaction() {
   if (level.envi == "pause") {
     pause = false;
@@ -176,18 +208,18 @@ function Level() {
     this.level_length = 1;  //This is the multiple of screen_dims we want
     this.dims = screen_dims;
     name_input = createInput();
-    name_input.position(screen_dims[0]*0.05, screen_dims[1]*0.6);
+    name_input.position(screen_dims[0]*0.05, screen_dims[1]*0.7);
     name_input.size(screen_dims[0]*0.7, screen_dims[1]*0.1);
     var name_input_size = screen_dims[0]*0.05;
     name_input.style('font-size: '+ name_input_size +'px');
     startButton = createButton('Start');
-    startButton.position(screen_dims[0]*0.8, screen_dims[1]*0.6);
+    startButton.position(screen_dims[0]*0.8, screen_dims[1]*0.7);
     startButton.mousePressed(startPlay);
     startButton.size(screen_dims[0]*0.2, screen_dims[1]*0.17);
     var startButtonSize = screen_dims[0]*0.05;
     startButton.style('font-size: '+startButtonSize+'px');
     textSize(screen_dims[0]*0.07);
-    text("TEMPLE RUN", screen_dims[0]*0.04, screen_dims[1]*0.2);
+    text("JUMPER PRO", screen_dims[0]*0.04, screen_dims[1]*0.2);
     textSize(screen_dims[0]*0.04);
     text("Code by Alek Westover\n\
 The goal is to win.\nYou do that by avoiding the barriers.\n\
@@ -266,7 +298,9 @@ I won't focus when the object distance is really small.", screen_dims[0]*0.1, ti
       this.barriers[i].update(dt);
       if (lenient_collide(this.barriers[i].perceived_pos, user_pos, this.barriers[i].dims, user_dims)) {
         if (user_invincibility == false) {
-          this.envi = "lose";
+          if (user_pos[1]+user_dims[1] >= this.barriers[i].perceived_pos[1]*deep_walk_multiplier) {
+            this.envi = "lose";
+          }
         }
       }
       // The extra seemingly random addition in the conitional below buys a little extra delay time before the win
@@ -326,20 +360,34 @@ function Player() {
       this.y_vel = -this.jump_speed;
     }
   }
-  this.update = function(dt) {
-    if (this.y_pos < this.std_pos[1]) {
-      this.ani_state = 0;
+  this.onSurface = function() {
+    var on_anything = false;
+    for (var i = 0; i < level.barriers.length; i++) {
+      var bar = level.barriers[i];
+      if (lenient_collide([this.std_pos[0], this.y_pos], bar.perceived_pos, this.dims, bar.dims) && this.y_pos+this.dims[1] < bar.perceived_pos[1]*deep_walk_multiplier) {
+        on_anything = true;
+      }
     }
+    if (this.y_pos >= this.std_pos[1]) {
+      on_anything = true;
+    }
+    return on_anything;
+  }
+  this.update = function(dt) {
+    this.y_pos += this.y_vel*dt;
+    this.y_vel += this.y_acc*dt;
     this.ani_state = (this.ani_state + 0.3) % player_images.length;
-    if (this.y_pos >= this.std_pos[1] && this.y_vel > 0) {
+    if (this.onSurface()) {    
+    //if (this.y_pos >= this.std_pos[1] && this.y_vel > 0) { old thing that now wont work
       this.y_acc = 0;
       this.y_vel = 0;
     }
     else {
       this.y_acc = gravity;
     }
-    this.y_pos += this.y_vel*dt;
-    this.y_vel += this.y_acc*dt;
+    if (this.y_vel != 0) {
+      this.ani_state = 0;
+    }
   }
   this.display = function() {
     var cur_image = player_images[int(this.ani_state)];
@@ -351,36 +399,6 @@ function Player() {
     pop();
   }
 };
-
-
-function lenient_collide(pa, pb, da, db) {
-  db = [db[0]*0.9, db[1]*0.9]
-  da = [da[0]*0.9, da[1]*0.9]
-  var right_x = pa[0] < pb[0] + db[0];
-  var left_x = pb[0] < pa[0] + da[0];
-  var top_y = pb[1] < pa[1] + da[1];
-  var bottom_y = pa[1] < pb[1] + db[1];
-  if (right_x && left_x && top_y && bottom_y) {
-    return true
-  }
-  else {
-    return false
-  }
-}
-
-
-function collide(pa, pb, da, db) {
-  var right_x = pa[0] < pb[0] + db[0];
-  var left_x = pb[0] < pa[0] + da[0];
-  var top_y = pb[1] < pa[1] + da[1];
-  var bottom_y = pa[1] < pb[1] + db[1];
-  if (right_x && left_x && top_y && bottom_y) {
-    return true
-  }
-  else {
-    return false
-  }
-}
 
 
 function Barrier() {
