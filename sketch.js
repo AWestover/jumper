@@ -107,18 +107,51 @@ function touchStarted() {
 }
 
 
+function partial_collide(pa, pb, da, db) {
+  var centa = [pa[0]+da[0]/2, pa[1]+da[1]/2];
+  //var centb = [pb[0]+db[0]/2, pb[1]+db[1]/2];
+  var right_x = centa[0]< pb[0] + db[0];
+  var left_x = pb[0] < pa[0] + da[0];
+  var top_y = pb[1] < pa[1] + da[1];
+  var bottom_y = pa[1] < pb[1] + db[1];
+  if (right_x && left_x && top_y && bottom_y) {
+    return true;
+  }
+  else {
+    return false;
+  }
+}
+
+
+function partial_lenient_collide(pa, pb, da, db, leniency) {
+  var centa = [pa[0]+da[0]/2, pa[1]+da[1]/2];
+  db = [db[0]*leniency, db[1]*leniency];
+  da = [da[0]*leniency, da[1]*leniency];
+  var right_x = centa[0] < pb[0] + db[0];
+  var left_x = pb[0] < pa[0] + da[0];
+  var top_y = pb[1] < pa[1] + da[1];
+  var bottom_y = pa[1] < pb[1] + db[1];
+  if (right_x && left_x && top_y && bottom_y) {
+    return true;
+  }
+  else {
+    return false;
+  }
+}
+
+
 function lenient_collide(pa, pb, da, db, leniency) {
-  db = [db[0]*leniency, db[1]*leniency]
-  da = [da[0]*leniency, da[1]*leniency]
+  db = [db[0]*leniency, db[1]*leniency];
+  da = [da[0]*leniency, da[1]*leniency];
   var right_x = pa[0] < pb[0] + db[0];
   var left_x = pb[0] < pa[0] + da[0];
   var top_y = pb[1] < pa[1] + da[1];
   var bottom_y = pa[1] < pb[1] + db[1];
   if (right_x && left_x && top_y && bottom_y) {
-    return true
+    return true;
   }
   else {
-    return false
+    return false;
   }
 }
 
@@ -129,10 +162,10 @@ function collide(pa, pb, da, db) {
   var top_y = pb[1] < pa[1] + da[1];
   var bottom_y = pa[1] < pb[1] + db[1];
   if (right_x && left_x && top_y && bottom_y) {
-    return true
+    return true;
   }
   else {
-    return false
+    return false;
   }
 }
 
@@ -296,7 +329,8 @@ I won't focus when the object distance is really small.", screen_dims[0]*0.1, ti
     var more_coming = false;
     for (var i = 0; i < this.obstacles; i++) {
       this.barriers[i].update(dt);
-      if (lenient_collide(this.barriers[i].perceived_pos, user_pos, this.barriers[i].dims, user_dims, 0.9)) {
+      if (partial_collide(user_pos, this.barriers[i].perceived_pos, user_dims, this.barriers[i].dims)) {
+      //use 0.9 if you revert to lenient
         if (user_invincibility == false) {
           if (user_pos[1]+user_dims[1] >= this.barriers[i].perceived_pos[1]*deep_walk_multiplier) {
             this.envi = "lose";
@@ -359,7 +393,7 @@ function Player() {
     var on_anything = false;
     for (var i = 0; i < level.barriers.length; i++) {
       var bar = level.barriers[i];
-      if (collide([this.std_pos[0], this.y_pos], bar.perceived_pos, this.dims, bar.dims) && this.y_pos+this.dims[1] < bar.perceived_pos[1]*deep_walk_multiplier) {
+      if (partial_collide([this.std_pos[0], this.y_pos], bar.perceived_pos, this.dims, bar.dims) && this.y_pos+this.dims[1] < bar.perceived_pos[1]*deep_walk_multiplier) {
         on_anything = true;
       }
     }
@@ -440,3 +474,4 @@ function Cloud() {
     image(cur_image, this.perceived_pos[0], this.perceived_pos[1], this.dims[0], this.dims[1]);
   }
 };
+
