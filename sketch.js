@@ -5,6 +5,7 @@
 //Constants and imported stuff
 var screen_dims = [];
 var screen_color = [100, 200, 300];
+
 var player_image_locs = [];
 for (var i = 1; i < 5; i++) {
   player_image_locs.push("images/mailman"+i+".png");
@@ -14,16 +15,21 @@ var barrier_image_locs = ["images/barrier.png"];
 var barrier_images = [];
 var cloud_image_locs = ["images/cloud.png"];
 var cloud_images = [];
+var rain_image_locs = ["images/rain.png"];
+var rain_images = [];
+
 var user_name = '';
 var startButton, name_input, introHtml, pauseButton, resumeButton, restartButton;
 
 //Possibly dynamic variables
-var gravity = 7;
-var dt = 0.5;
+var gravity =9.8*1.4; //;) 
+var dt = 0.2;
 var pause = false;
 var last_non_jump_click = 0;
-var first_lag_time = 100; //Milliseconds 
-var deep_walk_multiplier = 1.1;
+var first_lag_time = 70; //Milliseconds 
+var deep_walk_multiplier = 1.03;
+var scroll_speed = 30;
+var player_speed_multiplier = 0.15;
 
 
 function setup() {
@@ -37,6 +43,9 @@ function setup() {
   }
   for (var i = 0; i < cloud_image_locs.length; i++){
     cloud_images.push(loadImage(cloud_image_locs[i]));
+  }
+  for (var i = 0; i < rain_image_locs.length; i++){
+    rain_images.push(loadImage(rain_image_locs[i]));
   }
   player = new Player();
   player.initialize();
@@ -252,7 +261,7 @@ function Level() {
     var startButtonSize = screen_dims[0]*0.05;
     startButton.style('font-size: '+startButtonSize+'px');
     textSize(screen_dims[0]*0.07);
-    text("JUMPER PRO", screen_dims[0]*0.04, screen_dims[1]*0.2);
+    text("JUMPA", screen_dims[0]*0.04, screen_dims[1]*0.2);
     textSize(screen_dims[0]*0.04);
     text("Code by Alek Westover\n\
 The goal is to win.\nYou do that by avoiding the barriers.\n\
@@ -293,7 +302,7 @@ What is your name?", screen_dims[0]*0.04, screen_dims[1]*0.3);
         text("OK We are going to start out easy.", screen_dims[0]*0.1, tip_y_top);
       }
       else if(this.level == 2) {
-        text("OK the game is basicly over now.", screen_dims[0]*0.1, tip_y_top);
+        text("OK the game is basically over now.", screen_dims[0]*0.1, tip_y_top);
       }
       else if(this.level == 10) {
         text("Winston asked \n(from a far distance away)\n\
@@ -303,16 +312,16 @@ What did Winston see in the mirror?", screen_dims[0]*0.1, tip_y_top);
       }
       else if(this.level == 11) {
         text("It was a concave mirror,\n\
-so Winston say a smaller inverted version of himself,\n\
+so Winston saw a smaller inverted version of himself,\n\
 and proceeded to replicate the real image.", screen_dims[0]*0.1, tip_y_top);
       }
       else if(this.level == 51) {
         text("Once Winston asked the Convex lens \n\
-how it always sayed so foccused.", screen_dims[0]*0.1, tip_y_top);
+how it always sayed so focussed.", screen_dims[0]*0.1, tip_y_top);
       }
       else if(this.level == 52) {
         text("The lens answered, \n\
-I won't focus when the object distance is really small.", screen_dims[0]*0.1, tip_y_top);
+I'm not focussed when the object distance is really small.", screen_dims[0]*0.1, tip_y_top);
       }
       for (var i = 0; i < this.obstacles; i++) {
         this.barriers[i].display();
@@ -366,7 +375,7 @@ function Player() {
   this.initialize = function() {
     this.dims = [screen_dims[0]*0.1, screen_dims[1]*0.3];
     this.std_pos = [screen_dims[0]*0.1, screen_dims[1]-this.dims[1]]; 
-    this.jump_speed = 90;
+    this.jump_speed = screen_dims[1]*player_speed_multiplier;
     this.y_pos = this.std_pos[1]
     this.y_vel = 0;
     this.y_acc = 0; 
@@ -445,12 +454,32 @@ function Barrier() {
     this.perceived_pos = [this.x-this.offset, screen_dims[1]-this.dims[1]];
   }
   this.update = function(dt) {
-    this.offset += dt*10;
+    this.offset += dt*scroll_speed;
     this.perceived_pos = [this.x-this.offset, screen_dims[1]-this.dims[1]];
   }
   this.display = function() {
     var cur_image = barrier_images[this.image_state];
     image(cur_image, this.perceived_pos[0], this.perceived_pos[1], this.dims[0], this.dims[1]);
+  }
+};
+
+
+function RainDrop() {
+  this.initialize = function (xi, yposi, yveli) {
+    this.x = xi;
+    this.ypos = yposi;
+    this.yvel = yveli;
+    this.yacc = gravity*0.2; //Sorry physics
+    this.dims = [random(1, 5), random(1, 5)];
+    this.image_state  = 0;
+  }
+  this.update = function (dt) {
+    this.ypos += this.yvel*dt;
+    this.yvel += this.yacc*dt;
+  }
+  this.display = function() {
+    var cur_image = rain_images[this.image_state];
+    image(cur_image, this.x, this.ypos, this.dims[0], this.dims[1]);  
   }
 };
 
@@ -464,14 +493,35 @@ function Cloud() {
     this.image_state = 0;
     this.offset = 0;
     this.perceived_pos = [this.x-this.offset, int(this.dims[1]*random(0.6,0.7))];
+    this.rain_thickness = int(random(2,10));
+    console.log(this.rain_thickness);
+    this.rains = [];
   }
   this.update = function(dt) {
-    this.offset += dt*9;
+    this.offset += dt*scroll_speed*0.8;
     this.perceived_pos = [this.x-this.offset, this.perceived_pos[1]];
+
+    var triggered = false;
+    if (millis() % 100 < 10) {
+      triggered = true;
+    }
+    if (triggered == true) { //May be wrong, worried about frame rate
+      for (var i = 0; i < this.rain_thickness; i++) {
+        var luck_rain_draw = int(random(0, this.rain_thickness)/2);
+        if (luck_rain_draw == 0) {
+          this.rains.push(new RainDrop());
+          this.rains[this.rains.length - 1].initialize(this.perceived_pos[0] + i*this.dims[0]/this.rain_thickness, this.perceived_pos[1]+this.dims[1], 0);
+        }
+      }
+      triggered = false;
+    }
   }
   this.display = function() {
     var cur_image = cloud_images[this.image_state];
     image(cur_image, this.perceived_pos[0], this.perceived_pos[1], this.dims[0], this.dims[1]);
+    for (var i = 0; i < this.rains.length; i++) {
+      this.rains[i].update(dt);
+      this.rains[i].display();
+    }
   }
 };
-
