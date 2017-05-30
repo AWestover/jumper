@@ -18,12 +18,12 @@ var user_name = '';
 var startButton, name_input, introHtml, pauseButton, resumeButton, restartButton;
 
 //Possibly dynamic variables
-var gravity = 0.98;
+var gravity = 7;
 var dt = 0.5;
 var pause = false;
 var last_non_jump_click = 0;
 var first_lag_time = 100; //Milliseconds 
-var deep_walk_multiplier = 1.05;
+var deep_walk_multiplier = 1.1;
 
 
 function setup() {
@@ -107,9 +107,9 @@ function touchStarted() {
 }
 
 
-function lenient_collide(pa, pb, da, db) {
-  db = [db[0]*0.9, db[1]*0.9]
-  da = [da[0]*0.9, da[1]*0.9]
+function lenient_collide(pa, pb, da, db, leniency) {
+  db = [db[0]*leniency, db[1]*leniency]
+  da = [da[0]*leniency, da[1]*leniency]
   var right_x = pa[0] < pb[0] + db[0];
   var left_x = pb[0] < pa[0] + da[0];
   var top_y = pb[1] < pa[1] + da[1];
@@ -225,7 +225,7 @@ function Level() {
 The goal is to win.\nYou do that by avoiding the barriers.\n\
 What is your name?", screen_dims[0]*0.04, screen_dims[1]*0.3);
     this.barriers = [new Barrier()];
-    this.barriers[0].initialize(this.level_length);
+    this.barriers[0].initialize(this.level_length, [0.05, 0.25], [0.05, 0.25]);
     this.num_clouds = 2*int(this.level_length/0.3);
     this.clouds = [];
     for (var i = 0; i < this.num_clouds; i++) {
@@ -240,10 +240,10 @@ What is your name?", screen_dims[0]*0.04, screen_dims[1]*0.3);
     this.obstacles += 1;
     this.num_clouds = 2*int(this.level_length/0.3);
     this.level += 1;
-    this.level_length += 1;
+    this.level_length += 0.5;
     for (var i = 0; i < this.obstacles; i++) {
       this.barriers.push(new Barrier());
-      this.barriers[i].initialize(this.level_length);
+      this.barriers[i].initialize(this.level_length, [0.05, 0.25], [0.05, 0.25]);
     }
     for (var i = 0; i < this.num_clouds; i++) {
       this.clouds.push(new Cloud());
@@ -296,14 +296,14 @@ I won't focus when the object distance is really small.", screen_dims[0]*0.1, ti
     var more_coming = false;
     for (var i = 0; i < this.obstacles; i++) {
       this.barriers[i].update(dt);
-      if (lenient_collide(this.barriers[i].perceived_pos, user_pos, this.barriers[i].dims, user_dims)) {
+      if (lenient_collide(this.barriers[i].perceived_pos, user_pos, this.barriers[i].dims, user_dims, 0.9)) {
         if (user_invincibility == false) {
           if (user_pos[1]+user_dims[1] >= this.barriers[i].perceived_pos[1]*deep_walk_multiplier) {
             this.envi = "lose";
           }
         }
       }
-      // The extra seemingly random addition in the conitional below buys a little extra delay time before the win
+//The extra seemingly random addition in the conitional below buys a little extra delay time before winning
       if (this.barriers[i].perceived_pos[0] + this.barriers[i].dims[0] + screen_dims[0]*0.3> user_pos[0]) {  
         more_coming = true;
       }
@@ -332,7 +332,7 @@ function Player() {
   this.initialize = function() {
     this.dims = [screen_dims[0]*0.1, screen_dims[1]*0.3];
     this.std_pos = [screen_dims[0]*0.1, screen_dims[1]-this.dims[1]]; 
-    this.jump_speed = 25;
+    this.jump_speed = 90;
     this.y_pos = this.std_pos[1]
     this.y_vel = 0;
     this.y_acc = 0; 
@@ -355,16 +355,11 @@ function Player() {
       }
     }
   }
-  this.jump = function() {
-    if (this.y_pos >= this.std_pos[1] && level.envi == "play" && (millis() - last_non_jump_click) > first_lag_time) {
-      this.y_vel = -this.jump_speed;
-    }
-  }
   this.onSurface = function() {
     var on_anything = false;
     for (var i = 0; i < level.barriers.length; i++) {
       var bar = level.barriers[i];
-      if (lenient_collide([this.std_pos[0], this.y_pos], bar.perceived_pos, this.dims, bar.dims) && this.y_pos+this.dims[1] < bar.perceived_pos[1]*deep_walk_multiplier) {
+      if (collide([this.std_pos[0], this.y_pos], bar.perceived_pos, this.dims, bar.dims) && this.y_pos+this.dims[1] < bar.perceived_pos[1]*deep_walk_multiplier) {
         on_anything = true;
       }
     }
@@ -373,12 +368,16 @@ function Player() {
     }
     return on_anything;
   }
+  this.jump = function() {
+    if (this.onSurface() && level.envi == "play" && (millis() - last_non_jump_click) > first_lag_time) {
+      this.y_vel = -this.jump_speed;
+    }
+  }
   this.update = function(dt) {
     this.y_pos += this.y_vel*dt;
     this.y_vel += this.y_acc*dt;
     this.ani_state = (this.ani_state + 0.3) % player_images.length;
-    if (this.onSurface()) {    
-    //if (this.y_pos >= this.std_pos[1] && this.y_vel > 0) { old thing that now wont work
+    if (this.onSurface()) {
       this.y_acc = 0;
       this.y_vel = 0;
     }
@@ -402,9 +401,9 @@ function Player() {
 
 
 function Barrier() {
-  this.initialize = function(level_length) {
-    var rand_bar_width = int(random(screen_dims[0]*0.05, screen_dims[0]*0.15));
-    var rand_bar_height = int(random(screen_dims[1]*0.05, screen_dims[1]*0.15));  
+  this.initialize = function(level_length, height_bounds, width_bounds) {
+    var rand_bar_width = int(random(screen_dims[0]*width_bounds[0], screen_dims[0]*width_bounds[1]));
+    var rand_bar_height = int(random(screen_dims[1]*height_bounds[0], screen_dims[1]*height_bounds[1]));  
     this.dims = [rand_bar_width, rand_bar_height]
     this.x = random(screen_dims[0], screen_dims[0]*level_length);
     this.image_state = 0;
