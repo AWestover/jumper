@@ -37,7 +37,7 @@ var flag_time = 0;
 var first_lag_time = 70; //Milliseconds 
 var deep_walk_multiplier = 1.05;
 var scroll_speed = 60;
-var player_speed_multiplier = 0.12;
+var player_speed_multiplier = 0.17;
 var lose_time = -10000;
 var lose_delay_time = 5;
 var cap_speed = 120;
@@ -616,7 +616,7 @@ function RainDrop() {
     this.ypos = yposi;
     this.yvel = yveli;
     this.yacc = gravity*0.2; //Sorry physics
-    this.dims = [random(3, 25), random(3, 45)];
+    this.dims = [random(3, 10), random(3, 20)];
     this.image_state  = 0;
   }
   this.update = function (dt) {
