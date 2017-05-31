@@ -221,6 +221,22 @@ function pauseClickReaction() {
 }
 
 
+function rollClickReaction() {
+  if (level.envi == "play") {
+    player.set_roll_mode();
+  }
+  flag_time = millis();
+}
+
+
+function runClickReaction() {
+  if (level.envi == "play") {
+    player.set_run_mode();
+  }
+  flag_time = millis();
+}
+
+
 function switchResumePause() {
   if (resumeButton.style('visibility') == "visible") {
     resumeButton.style('visibility: hidden');
@@ -307,7 +323,7 @@ function Level() {
 
     rollButton = createButton('Roll');
     rollButton.position(screen_dims[0]*0.76, screen_dims[1]*0.15);
-    rollButton.mousePressed(player.set_roll_mode);
+    rollButton.mousePressed(rollClickReaction);
     rollButton.size(screen_dims[0]*0.2, screen_dims[1]*0.11);
     var rollButtonSize = screen_dims[0]*0.04;
     rollButton.style('font-size: '+rollButtonSize+'px');
@@ -315,7 +331,7 @@ function Level() {
 
     runButton = createButton('Run');
     runButton.position(screen_dims[0]*0.76, screen_dims[1]*0.27);
-    runButton.mousePressed(player.set_run_mode);
+    runButton.mousePressed(runClickReaction);
     runButton.size(screen_dims[0]*0.2, screen_dims[1]*0.11);
     var runButtonSize = screen_dims[0]*0.04;
     runButton.style('font-size: '+runButtonSize+'px');
@@ -465,6 +481,7 @@ function Player() {
     this.move_state = 'run';
   }
   this.set_roll_mode = function() {
+    console.log("in");
     if (this.move_state != 'roll') {
       this.move_state = 'roll';
       this.cur_dims = this.roll_dims;
@@ -495,10 +512,10 @@ function Player() {
         this.invincibility = true;
       }
       if (key == "o") {
-        this.set_roll_mode;
+        this.set_roll_mode();
       }
       if (key == "u") {
-        this.set_run_mode;
+        this.set_run_mode();
       }
       if (key == "n") {
         this.invincibility = false;
