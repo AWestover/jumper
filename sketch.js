@@ -705,7 +705,7 @@ function RainDrop() {
     this.ypos = yposi;
     this.yvel = yveli;
     this.yacc = gravity*0.2; //Sorry physics
-    this.dims = [random(3, 25), random(3, 45)];
+    this.dims = [screen_dims[0]/random(60,100), screen_dims[1]/random(30, 50)];
     this.image_state  = 0;
   }
   this.update = function (dt) {
@@ -856,3 +856,4 @@ function Shark() {
     image(cur_image, this.x_pos, this.y_pos, this.dims[0], this.dims[1]);//drawn from top left
   }
 };
+
