@@ -40,12 +40,12 @@ var lose_time = -10000;
 var lose_delay_time = 20;
 var cap_speed = 100;
 var player_size_multiplier = 1; // dont get crazy
-var speed_increase_multiplier = 1;
+var speed_increase_multiplier = 1.01;
 
 
 function setup() {
   screen_dims = [window.innerWidth*0.8, window.innerHeight*0.8];
-  scroll_speed = screen_dims[0]/10;
+  scroll_speed = screen_dims[0]/20;
   player_height = 0.3*player_size_multiplier*screen_dims[1];
   gravity = 0.07*(screen_dims[1] - player_height);
   player_jump_speed = 0.3*(screen_dims[1] - player_height);
@@ -272,26 +272,27 @@ function switchResumePause() {
 
 function restartGame() {
   level.dims = screen_dims;
-  scroll_speed = 60;
+  scroll_speed = screen_dims[0]/20;
   level.level = 0;
   level.level_length = 0;
   if (level.envi == "lose") {
     restartButton.remove();
   }
   level.envi = "play";
-  level.update();
   pauseButton.style('visibility: visible');
   rollButton.style('visibility: visible');
   runButton.style('visibility: visible');
   flag_time = millis();
   player.y_vel = 0;
-
-  level.num_barriers = 0;
-  level.barriers = [new Barrier()];
-  level.barriers[0].initialize(level.level_length, [0.2, 0.4], [0.05, 0.15]);
+  level.update();
   
-  level.num_sharks = 0;
-  level.sharks = [];
+  level.num_barriers = 1;
+  level.barriers = [new Barrier()];
+  level.barriers[0].initialize(level.level_length, [0.2, 0.4], [0.05, 0.15], [], []);
+  
+  level.num_sharks = 1;
+  level.sharks = [new Shark()];
+  level.sharks[0].initialize(level.level_length, [], []);
 
   level.num_clouds = 2*int(level.level_length/0.3);
   level.clouds = [];
@@ -303,7 +304,6 @@ function restartGame() {
     cloud_xs.push(level.clouds[i].x);
     cloud_widths.push(level.clouds[i].dims[0]);
   }
-
 
 }
 
@@ -398,25 +398,30 @@ function Level() {
     this.sharks = [];
 
     if (this.level%3 == 0 && scroll_speed < cap_speed) {
-      scroll_speed += 20*speed_increase_multiplier;
+      scroll_speed *= speed_increase_multiplier;
       this.num_sharks += 1;
-    }
-
-    for (var i = 0; i < this.num_barriers; i++) {
-      this.barriers.push(new Barrier());
-      this.barriers[i].initialize(this.level_length, [0.2, 0.4], [0.05, 0.15]);
     }
 
 
     var shark_xs = [];
     var shark_widths = [];
-    console.log(this.num_sharks);
     for (var i = 0; i < this.num_sharks; i++) {
       this.sharks.push(new Shark());
       this.sharks[i].initialize(this.level_length, shark_xs, shark_widths);
       shark_xs.push(this.sharks[i].x_pos);
       shark_widths.push(this.sharks[i].dims[0]);
     }
+
+
+    var bars_pos = [];
+    var bar_dims = [];
+    for (var i = 0; i < this.num_barriers; i++) {
+      this.barriers.push(new Barrier());
+      this.barriers[i].initialize(this.level_length, [0.2, 0.4], [0.05, 0.15], bars_pos, bar_dims);
+      bars_pos.push(this.barriers[i].perceived_pos);
+      bar_dims.push(this.barriers[i].dims);
+    }
+
 
     var cloud_xs = [];
     var cloud_widths = [];
@@ -661,19 +666,30 @@ function Player() {
 
 
 function Barrier() {
-  this.initialize = function(level_length, width_bounds, height_bounds) {
+  this.initialize = function(level_length, width_bounds, height_bounds, other_bars_pos, other_bar_dims) {
     var rand_bar_width = int(random(screen_dims[0]*width_bounds[0], screen_dims[0]*width_bounds[1]));
     var rand_bar_height = int(random(screen_dims[1]*height_bounds[0], screen_dims[1]*height_bounds[1]));  
-    this.dims = [rand_bar_width, rand_bar_height]
-    this.x = random(screen_dims[0], screen_dims[0]*level_length);
+    this.dims = [rand_bar_width, rand_bar_height];
     this.image_state = 0;
-    this.offset = 0;
-    var random_height_offset = screen_dims[1]*int(random(0,5))*0.1;
-    this.perceived_pos = [this.x-this.offset, screen_dims[1]-this.dims[1]-random_height_offset];
+
+    var no_collisions = false;
+    var pos_guess = [0, 0];
+    while (no_collisions == false) {
+      no_collisions = true;
+      pos_guess[0] = random(screen_dims[0], screen_dims[0]*level_length);
+      pos_guess[1] = screen_dims[1]-this.dims[1]-screen_dims[1]*int(random(0,5))*0.1;
+      this.dims[0] = 0.9*this.dims[0];
+      this.dims[1] = 0.9*this.dims[1];
+      for (var i = 0; i < other_bars_pos.length; i++) {
+        if (collide(pos_guess, other_bars_pos[i], this.dims, other_bar_dims[i])) {
+          no_collisions = false;
+        }
+      }
+    }
+    this.perceived_pos = [pos_guess[0], pos_guess[1]];
   }
   this.update = function(dt) {
-    this.offset += dt*scroll_speed;
-    this.perceived_pos[0] = this.x-this.offset;
+    this.perceived_pos[0] -= dt*scroll_speed;
   }
   this.display = function() {
     var cur_image = barrier_images[this.image_state];
