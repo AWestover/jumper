@@ -1,11 +1,11 @@
 // Coded by Alek Westover
-//Avoid the obstacles
-// Take a poll about the graphics UI and overlaping stuff
-//NOTE STUPID CONVENTION: YVELOCITY is negitive means it is moving up the page, away from the bottom (b/c top of page is 0 and stuff) so basicly the enemies gate is down, where the enemies gate is the sky
+//Do not run into the obstacles (although you can jump on them) and avoid the sharks
+//NOTE STUPID CONVENTION: Y_VELOCITY is NEGITIVE means it is moving UP the page, away from the bottom (b/c top of page is 0 and stuff) so basicly the enemies gate is down, where the enemies gate is the sky
 
 //Constants and imported stuff
 var screen_dims = [];
 var screen_color = [100, 200, 300];
+var player_height;
 
 var player_image_locs = [];
 var player_images = [];
@@ -15,7 +15,7 @@ for (var i = 1; i <= 5; i++) {
 
 var shark_image_locs = [];
 var shark_images = [];
-for (var i = 1; i <= 1; i++) {
+for (var i = 1; i <= 2; i++) {
   shark_image_locs.push("images/shark"+i+".png");
 }
 
@@ -30,23 +30,26 @@ var user_name = '';
 var startButton, name_input, introHtml, pauseButton, resumeButton, restartButton, rollButton, runButton;
 
 //Possibly dynamic variables
-var gravity = 9.8*3; //;) 
+var gravity, scroll_speed, player_jump_speed;
 var dt = 0.2;
 var pause = false;
 var flag_time = 0;
 var first_lag_time = 70; //Milliseconds 
 var deep_walk_multiplier = 0.5;//MUST BE GREATER THAN 0 and LESS THAN 1
-var scroll_speed = 60;
-var player_speed_multiplier = 0.13;
 var lose_time = -10000;
 var lose_delay_time = 20;
 var cap_speed = 100;
-var player_size_multiplier = 1;
+var player_size_multiplier = 1; // dont get crazy
 var speed_increase_multiplier = 1;
 
 
 function setup() {
   screen_dims = [window.innerWidth*0.8, window.innerHeight*0.8];
+  scroll_speed = screen_dims[0]/10;
+  player_height = 0.3*player_size_multiplier*screen_dims[1];
+  gravity = 0.07*(screen_dims[1] - player_height);
+  player_jump_speed = 0.3*(screen_dims[1] - player_height);
+
   createCanvas(screen_dims[0], screen_dims[1]);
   for (var i = 0; i < player_image_locs.length; i++){
     player_images.push(loadImage(player_image_locs[i]));
@@ -271,7 +274,6 @@ function restartGame() {
   level.dims = screen_dims;
   scroll_speed = 60;
   level.level = 0;
-  level.obstacles = 0;
   level.level_length = 0;
   if (level.envi == "lose") {
     restartButton.remove();
@@ -284,11 +286,12 @@ function restartGame() {
   flag_time = millis();
   player.y_vel = 0;
 
+  level.num_barriers = 0;
   level.barriers = [new Barrier()];
   level.barriers[0].initialize(level.level_length, [0.2, 0.4], [0.05, 0.15]);
   
-  level.sharks = [new Shark()];
-  level.sharks[0].initialize();
+  level.num_sharks = 0;
+  level.sharks = [];
 
   level.num_clouds = 2*int(level.level_length/0.3);
   level.clouds = [];
@@ -312,6 +315,9 @@ function startPlay() {
   startButton.remove();
   flag_time = millis();
   restartGame();
+  if (user_name == "alek " || user_name[0] == "m" || user_name[0] == "M") {
+    player.invincibility = true;
+  }
 }
 
 
@@ -345,8 +351,10 @@ function Level() {
     var startButtonSize = screen_dims[0]*0.05;
     startButton.style('font-size: '+startButtonSize+'px');
 
+    var hor_mult = 1.33;
+
     resumeButton = createButton('Resume');
-    resumeButton.position(screen_dims[0]*0.76, screen_dims[1]*0.02);
+    resumeButton.position(screen_dims[0]*0.76*hor_mult, screen_dims[1]*0.02);
     resumeButton.mousePressed(resumeClickReaction);
     resumeButton.size(screen_dims[0]*0.2, screen_dims[1]*0.11);
     var resumeButtonSize = screen_dims[0]*0.04;
@@ -354,7 +362,7 @@ function Level() {
     resumeButton.style('visibility: hidden');
 
     pauseButton = createButton('Pause');
-    pauseButton.position(screen_dims[0]*0.76, screen_dims[1]*0.02);
+    pauseButton.position(screen_dims[0]*0.76*hor_mult, screen_dims[1]*0.02);
     pauseButton.mousePressed(pauseClickReaction);
     pauseButton.size(screen_dims[0]*0.2, screen_dims[1]*0.11);
     var pauseButtonSize = screen_dims[0]*0.04;
@@ -362,7 +370,7 @@ function Level() {
     pauseButton.style('visibility: hidden');
 
     rollButton = createButton('Roll');
-    rollButton.position(screen_dims[0]*0.76, screen_dims[1]*0.15);
+    rollButton.position(screen_dims[0]*0.76*hor_mult, screen_dims[1]*0.15);
     rollButton.mousePressed(rollClickReaction);
     rollButton.size(screen_dims[0]*0.2, screen_dims[1]*0.11);
     var rollButtonSize = screen_dims[0]*0.04;
@@ -370,7 +378,7 @@ function Level() {
     rollButton.style('visibility: hidden');
 
     runButton = createButton('Run');
-    runButton.position(screen_dims[0]*0.76, screen_dims[1]*0.27);
+    runButton.position(screen_dims[0]*0.76*hor_mult, screen_dims[1]*0.27);
     runButton.mousePressed(runClickReaction);
     runButton.size(screen_dims[0]*0.2, screen_dims[1]*0.11);
     var runButtonSize = screen_dims[0]*0.04;
@@ -378,24 +386,36 @@ function Level() {
     runButton.style('visibility: hidden');
   }
   this.update = function() {
-    this.barriers = [];
-    this.obstacles += 1;
-    this.clouds = [];
-    this.num_clouds = 2*int(this.level_length/0.3);
-    this.sharks = [];
-    this.num_sharks = 1;
-
     this.level += 1;
     this.level_length += 0.5;
 
-    for (var i = 0; i < this.obstacles; i++) {
+    this.barriers = [];
+    this.num_barriers += 1;
+
+    this.clouds = [];
+    this.num_clouds = 2*int(this.level_length/0.3);
+
+    this.sharks = [];
+
+    if (this.level%3 == 0 && scroll_speed < cap_speed) {
+      scroll_speed += 20*speed_increase_multiplier;
+      this.num_sharks += 1;
+    }
+
+    for (var i = 0; i < this.num_barriers; i++) {
       this.barriers.push(new Barrier());
       this.barriers[i].initialize(this.level_length, [0.2, 0.4], [0.05, 0.15]);
     }
 
+
+    var shark_xs = [];
+    var shark_widths = [];
+    console.log(this.num_sharks);
     for (var i = 0; i < this.num_sharks; i++) {
       this.sharks.push(new Shark());
-      this.sharks[i].initialize();
+      this.sharks[i].initialize(this.level_length, shark_xs, shark_widths);
+      shark_xs.push(this.sharks[i].x_pos);
+      shark_widths.push(this.sharks[i].dims[0]);
     }
 
     var cloud_xs = [];
@@ -407,9 +427,6 @@ function Level() {
       cloud_widths.push(this.clouds[i].dims[0]);
     }
 
-    if (this.level%3 == 0 && scroll_speed < cap_speed) {
-      scroll_speed += 20*speed_increase_multiplier;
-    }
   }
   this.display = function() {
     if (this.envi == "play") {
@@ -442,7 +459,7 @@ how it always sayed so foccused.", screen_dims[0]*0.1, tip_y_top);
         text("The lens answered, \n\
 I won't focus when the object distance is really small.", screen_dims[0]*0.1, tip_y_top);
       }
-      for (var i = 0; i < this.obstacles; i++) {
+      for (var i = 0; i < this.num_barriers; i++) {
         this.barriers[i].display();
       }
       for (var i = 0; i < this.num_clouds; i++) {
@@ -461,7 +478,7 @@ I won't focus when the object distance is really small.", screen_dims[0]*0.1, ti
       this.sharks[i].update(dt);
     }
     var more_coming = false;
-    for (var i = 0; i < this.obstacles; i++) {
+    for (var i = 0; i < this.num_barriers; i++) {
       this.barriers[i].update(dt);
       var bar = this.barriers[i];
       if (partial_collide(user_pos, bar.perceived_pos, user_dims, bar.dims)) {
@@ -505,11 +522,11 @@ I won't focus when the object distance is really small.", screen_dims[0]*0.1, ti
 
 function Player() {
   this.initialize = function() {
-    this.run_dims = [screen_dims[0]*0.07*player_size_multiplier, screen_dims[1]*0.3*player_size_multiplier];
+    this.run_dims = [screen_dims[0]*0.07*player_size_multiplier, player_height];
     this.roll_dims = [screen_dims[0]*0.05*player_size_multiplier, screen_dims[0]*0.07*player_size_multiplier];
     this.cur_dims = this.run_dims;
     this.std_pos = [screen_dims[0]*0.07*player_size_multiplier, screen_dims[1]-this.cur_dims[1]]; 
-    this.jump_speed = screen_dims[1]*player_speed_multiplier;
+    this.jump_speed = player_jump_speed;
     this.y_pos = this.std_pos[1]
     this.y_vel = 0;
     this.y_acc = 0; 
@@ -560,7 +577,7 @@ function Player() {
         this.invincibility = false;
       }
       if (key == "j") {
-        if (this.jump_speed < screen_dims[1]*player_speed_multiplier*1.4){
+        if (this.jump_speed < player_jump_speed*1.4){
           this.jump_speed *= 1.2;
         }
       }
@@ -752,18 +769,74 @@ function Cloud() {
 
 
 function Shark() {
-  this.initialize = function(){
+  this.initialize = function(level_length, other_shark_xs, other_shark_widths){
     this.ani_state = 0;
-    this.y_pos = screen_dims[1]/2;
-    this.x_pos = screen_dims[0]/2;
-    this.dims = [screen_dims[0]*0.1, screen_dims[1]*0.1]
+    this.y_pos = screen_dims[1]*0.05;
+    var rand_shark_size = int(random(screen_dims[0]*0.1, screen_dims[0]*0.4));  
+    this.dims = [rand_shark_size, int(rand_shark_size/2.5)];
+    this.x_vel = scroll_speed*1.5;
+    this.y_vel = 0;
+    this.y_acc = 0;
+
+    var no_collisions = false;
+    var x_guess;
+    while (no_collisions == false) {
+      no_collisions = true;
+      x_guess = random(screen_dims[0], screen_dims[0]*(1+level_length));
+      this.dims[0] = 0.9*this.dims[0];
+      this.dims[1] = 0.9*this.dims[1];
+      for (var i = 0; i < other_shark_xs.length; i++) {
+        if (one_d_collide(other_shark_xs[i], x_guess, other_shark_widths[i], this.dims[0])) {
+          no_collisions = false;
+        }
+      }
+    }
+
+    this.x_pos = x_guess;
+  }
+  this.onSurface = function() {
+    var on_anything = false;
+    for (var i = 0; i < level.barriers.length; i++) {
+      var bar = level.barriers[i];
+      if (landing_collide([this.x_pos, this.y_pos], bar.perceived_pos, this.dims, bar.dims)) {
+        on_anything = true;
+        if (this.y_vel > 0) {
+          this.y_acc = 0;
+          this.y_vel = 0;
+        }
+        if (this.y_vel == 0) {  
+          this.y_pos = bar.perceived_pos[1] - this.dims[1];
+        }
+      }
+    }
+    if (this.y_pos >= screen_dims[1]-this.dims[1]) {
+      on_anything = true;
+      if (this.y_vel > 0) {
+        this.y_acc = 0;
+        this.y_vel = 0;
+      }
+      if (this.y_vel == 0) {
+        this.y_pos = screen_dims[1]-this.dims[1];
+      }
+    }
+    return on_anything;
   }
   this.update = function(dt){
-
+    this.x_pos -= dt*this.x_vel;
+    this.ani_state = (this.ani_state + 0.1) % shark_images.length;
+    if (this.x_pos < screen_dims[0]) {
+      this.y_acc = gravity*0.2;
+    }
+    if (this.onSurface()) {
+      this.y_acc = 0;
+      this.y_vel = 0;
+      this.x_vel = scroll_speed;
+    }
+    this.y_vel += dt*this.y_acc;
+    this.y_pos += dt*this.y_vel;
   }
   this.display = function() {
     var cur_image = shark_images[int(this.ani_state)];
-    image(cur_image, this.x_pos, this.y_pos, this.dims[0], this.dims[1]);//Drawn from top left
+    image(cur_image, this.x_pos, this.y_pos, this.dims[0], this.dims[1]);//drawn from top left
   }
 };
-
