@@ -1,6 +1,7 @@
 // Coded by Alek Westover
 //Avoid the obstacles
 // Take a poll about the graphics UI and overlaping stuff
+//NOTE STUPID CONVENTION: YVELOCITY is negitive means it is moving up the page, away from the bottom (b/c top of page is 0 and stuff) so basicly the enemies gate is down, where the enemies gate is the sky
 
 //Constants and imported stuff
 var screen_dims = [];
@@ -11,13 +12,12 @@ var player_images = [];
 for (var i = 1; i <= 5; i++) {
   player_image_locs.push("images/mailman"+i+".png");
 }
-var enemy_image_locs = [];
-var enemy_images = [];
-for (var i = 1; i <= 1; i++) {
-  enemy_image_locs.push("images/enemy"+i+".png");
-}
 
-enemy_image_locs = ["images/creepyColorfulFace.png"];  //TEMPORAARY MEASURE to avoid errors
+var shark_image_locs = [];
+var shark_images = [];
+for (var i = 1; i <= 1; i++) {
+  shark_image_locs.push("images/shark"+i+".png");
+}
 
 var barrier_image_locs = ["images/barrier.png"];
 var barrier_images = [];
@@ -35,12 +35,14 @@ var dt = 0.2;
 var pause = false;
 var flag_time = 0;
 var first_lag_time = 70; //Milliseconds 
-var deep_walk_multiplier = 1.05;
+var deep_walk_multiplier = 0.5;//MUST BE GREATER THAN 0 and LESS THAN 1
 var scroll_speed = 60;
-var player_speed_multiplier = 0.4;
+var player_speed_multiplier = 0.13;
 var lose_time = -10000;
-var lose_delay_time = 5;
-var cap_speed = 120;
+var lose_delay_time = 20;
+var cap_speed = 100;
+var player_size_multiplier = 1;
+var speed_increase_multiplier = 1;
 
 
 function setup() {
@@ -49,8 +51,8 @@ function setup() {
   for (var i = 0; i < player_image_locs.length; i++){
     player_images.push(loadImage(player_image_locs[i]));
   }
-  for (var i = 0; i < enemy_image_locs.length; i++){
-    enemy_images.push(loadImage(enemy_image_locs[i]));
+  for (var i = 0; i < shark_image_locs.length; i++){
+    shark_images.push(loadImage(shark_image_locs[i]));
   }
   for (var i = 0; i < barrier_image_locs.length; i++){
     barrier_images.push(loadImage(barrier_image_locs[i]));
@@ -114,10 +116,26 @@ function touchStarted() {
 }
 
 
+function landing_collide(player_loc, bar_loc, player_dims, bar_dims) {
+  var on_y = player_loc[1] + player_dims[1] >= bar_loc[1] - bar_dims[1]*deep_walk_multiplier;
+  var above = player_loc[1] + player_dims[1] <= bar_loc[1] + bar_dims[1]*deep_walk_multiplier;
+  var cent_player_x = player_loc[0] + player_dims[0]/2;
+  var right_x = cent_player_x < bar_loc[0] + bar_dims[0];
+  var left_x = bar_loc[0] < player_loc[0] + player_dims[0];
+  if (above && on_y && right_x && left_x) {
+    return true;
+  }
+  else {
+    return false;
+  }
+}
+
+
+//DIscontinue use of this it is probably wrong
 function partial_collide(pa, pb, da, db) {
-  var centa = [pa[0]+da[0]/2, pa[1]+da[1]/2];
+  var centa = [pa[0]+da[0]/2, pa[1]];//+da[1]/2];
   //var centb = [pb[0]+db[0]/2, pb[1]+db[1]/2];
-  var right_x = centa[0]< pb[0] + db[0];
+  var right_x = centa[0] < pb[0] + db[0];
   var left_x = pb[0] < pa[0] + da[0];
   var top_y = pb[1] < pa[1] + da[1];
   var bottom_y = pa[1] < pb[1] + db[1];
@@ -250,29 +268,50 @@ function switchResumePause() {
 
 
 function restartGame() {
+  level.dims = screen_dims;
   scroll_speed = 60;
   level.level = 0;
   level.obstacles = 0;
   level.level_length = 0;
+  if (level.envi == "lose") {
+    restartButton.remove();
+  }
   level.envi = "play";
   level.update();
-  restartButton.remove();
   pauseButton.style('visibility: visible');
+  rollButton.style('visibility: visible');
+  runButton.style('visibility: visible');
   flag_time = millis();
+  player.y_vel = 0;
+
+  level.barriers = [new Barrier()];
+  level.barriers[0].initialize(level.level_length, [0.2, 0.4], [0.05, 0.15]);
+  
+  level.sharks = [new Shark()];
+  level.sharks[0].initialize();
+
+  level.num_clouds = 2*int(level.level_length/0.3);
+  level.clouds = [];
+  var cloud_xs = [];
+  var cloud_widths = [];
+  for (var i = 0; i < level.num_clouds; i++) {
+    level.clouds.push(new Cloud());
+    level.clouds[i].initialize(level.level_length, cloud_xs, cloud_widths);
+    cloud_xs.push(level.clouds[i].x);
+    cloud_widths.push(level.clouds[i].dims[0]);
+  }
+
+
 }
 
 
 function startPlay() {
-  runButton.style('visibility: visible');
-  rollButton.style('visibility: visible');
-  pauseButton.style('visibility: visible');
   user_name = name_input.value();
-  //var introHtml = document.getElementById("intro");
-  //introHtml.innerHTML = "";
   level.envi = "play";
   name_input.remove();
   startButton.remove();
   flag_time = millis();
+  restartGame();
 }
 
 
@@ -287,11 +326,12 @@ function add(x, y) {
 
 function Level() {
   this.initialize = function() {
-    this.envi = 'start';
-    this.obstacles = 1;
-    this.level = 1;
-    this.level_length = 1;  //This is the multiple of screen_dims we want
-    this.dims = screen_dims;
+    level.envi = "setup";
+    textSize(screen_dims[0]*0.07);
+    text("JUMPER PRO", screen_dims[0]*0.04, screen_dims[1]*0.2);
+    textSize(screen_dims[0]*0.04);
+    text("Code by Alek Westover\nThe goal is to win.\nWhat is your name?", screen_dims[0]*0.04, screen_dims[1]*0.3);
+
     name_input = createInput();
     name_input.position(screen_dims[0]*0.05, screen_dims[1]*0.7);
     name_input.size(screen_dims[0]*0.7, screen_dims[1]*0.1);
@@ -336,35 +376,28 @@ function Level() {
     var runButtonSize = screen_dims[0]*0.04;
     runButton.style('font-size: '+runButtonSize+'px');
     runButton.style('visibility: hidden');
-
-    textSize(screen_dims[0]*0.07);
-    text("JUMPER PRO", screen_dims[0]*0.04, screen_dims[1]*0.2);
-    textSize(screen_dims[0]*0.04);
-    text("Code by Alek Westover\nThe goal is to win.\nWhat is your name?", screen_dims[0]*0.04, screen_dims[1]*0.3);
-    this.barriers = [new Barrier()];
-    this.barriers[0].initialize(this.level_length, [0.05, 0.25], [0.05, 0.25]);
-    this.num_clouds = 2*int(this.level_length/0.3);
-    this.clouds = [];
-    var cloud_xs = [];
-    var cloud_widths = [];
-    for (var i = 0; i < this.num_clouds; i++) {
-      this.clouds.push(new Cloud());
-      this.clouds[i].initialize(this.level_length, cloud_xs, cloud_widths);
-      cloud_xs.push(this.clouds[i].x);
-      cloud_widths.push(this.clouds[i].dims[0]);
-    }
   }
   this.update = function() {
     this.barriers = [];
-    this.clouds = [];
     this.obstacles += 1;
+    this.clouds = [];
     this.num_clouds = 2*int(this.level_length/0.3);
+    this.sharks = [];
+    this.num_sharks = 1;
+
     this.level += 1;
     this.level_length += 0.5;
+
     for (var i = 0; i < this.obstacles; i++) {
       this.barriers.push(new Barrier());
-      this.barriers[i].initialize(this.level_length, [0.05, 0.25], [0.05, 0.25]);
+      this.barriers[i].initialize(this.level_length, [0.2, 0.4], [0.05, 0.15]);
     }
+
+    for (var i = 0; i < this.num_sharks; i++) {
+      this.sharks.push(new Shark());
+      this.sharks[i].initialize();
+    }
+
     var cloud_xs = [];
     var cloud_widths = [];
     for (var i = 0; i < this.num_clouds; i++) {
@@ -373,8 +406,9 @@ function Level() {
       cloud_xs.push(this.clouds[i].x);
       cloud_widths.push(this.clouds[i].dims[0]);
     }
+
     if (this.level%3 == 0 && scroll_speed < cap_speed) {
-      scroll_speed += 40;
+      scroll_speed += 20*speed_increase_multiplier;
     }
   }
   this.display = function() {
@@ -414,23 +448,28 @@ I won't focus when the object distance is really small.", screen_dims[0]*0.1, ti
       for (var i = 0; i < this.num_clouds; i++) {
         this.clouds[i].display();
       }
+      for (var i = 0; i < this.num_sharks; i++) {
+        this.sharks[i].display();
+      }
     }
   }
   this.run = function(user_pos, user_dims, user_invincibility, dt) {
     for (var i = 0; i < this.num_clouds; i++) {
       this.clouds[i].update(dt);
     }
+    for (var i = 0; i < this.num_sharks; i++) {
+      this.sharks[i].update(dt);
+    }
     var more_coming = false;
     for (var i = 0; i < this.obstacles; i++) {
       this.barriers[i].update(dt);
-      if (partial_collide(user_pos, this.barriers[i].perceived_pos, user_dims, this.barriers[i].dims)) {
-        if (user_invincibility == false) {
-          if (user_pos[1]+user_dims[1] >= this.barriers[i].perceived_pos[1]*deep_walk_multiplier) {
-            if (millis() - lose_time > 400) {
-              lose_time = millis();
+      var bar = this.barriers[i];
+      if (partial_collide(user_pos, bar.perceived_pos, user_dims, bar.dims)) {
+        if (!user_invincibility && !landing_collide(user_pos, bar.perceived_pos, user_dims, bar.dims)) {
+          if (millis() - lose_time > 400) {
+            lose_time = millis();
     //Buys us a little time to make the losing look more realistic, but blocks jumping so you can't escape your fate
-              flag_time = millis();
-            }
+            flag_time = millis();
           }
         }
       }
@@ -466,10 +505,10 @@ I won't focus when the object distance is really small.", screen_dims[0]*0.1, ti
 
 function Player() {
   this.initialize = function() {
-    this.run_dims = [screen_dims[0]*0.1, screen_dims[1]*0.3];
-    this.roll_dims = [screen_dims[0]*0.07, screen_dims[0]*0.07];
+    this.run_dims = [screen_dims[0]*0.07*player_size_multiplier, screen_dims[1]*0.3*player_size_multiplier];
+    this.roll_dims = [screen_dims[0]*0.05*player_size_multiplier, screen_dims[0]*0.07*player_size_multiplier];
     this.cur_dims = this.run_dims;
-    this.std_pos = [screen_dims[0]*0.1, screen_dims[1]-this.cur_dims[1]]; 
+    this.std_pos = [screen_dims[0]*0.07*player_size_multiplier, screen_dims[1]-this.cur_dims[1]]; 
     this.jump_speed = screen_dims[1]*player_speed_multiplier;
     this.y_pos = this.std_pos[1]
     this.y_vel = 0;
@@ -479,15 +518,15 @@ function Player() {
     this.run_anis = 4;
     this.roll_anis = 1;
     this.move_state = 'run';
+    this.theta = 0;
   }
   this.set_roll_mode = function() {
-    console.log("in");
     if (this.move_state != 'roll') {
       this.move_state = 'roll';
       this.cur_dims = this.roll_dims;
-      this.std_pos = [screen_dims[0]*0.1, screen_dims[1]-this.cur_dims[1]];
+      this.std_pos = [this.roll_dims[0], screen_dims[1] - this.roll_dims[1]];
       this.ani_state = this.roll_anis;
-      this.y_pos += this.run_dims[1] -this.roll_dims[1];
+      this.y_pos += this.run_dims[1] - this.cur_dims[1];
       //y_pos_new + this.cur_dims[1] = y_pos_old + this.old_dims[1] Means same feet pos before and after
     }
   }
@@ -495,9 +534,9 @@ function Player() {
     if (this.move_state != 'run') {
       this.move_state = 'run';
       this.cur_dims = this.run_dims;
-      this.std_pos = [screen_dims[0]*0.1, screen_dims[1]-this.cur_dims[1]];
+      this.std_pos = [this.cur_dims[0], screen_dims[1]-this.cur_dims[1]];
       this.ani_state = 0;
-      this.y_pos += this.roll_dims[1] - this.run_dims[1];
+      this.y_pos += this.roll_dims[1] - this.cur_dims[1];
     }  
   }
   this.react_press = function() {
@@ -520,48 +559,62 @@ function Player() {
       if (key == "n") {
         this.invincibility = false;
       }
+      if (key == "j") {
+        if (this.jump_speed < screen_dims[1]*player_speed_multiplier*1.4){
+          this.jump_speed *= 1.2;
+        }
+      }
     }
   }
   this.onSurface = function() {
     var on_anything = false;
     for (var i = 0; i < level.barriers.length; i++) {
       var bar = level.barriers[i];
-      if (partial_collide([this.std_pos[0], this.y_pos], bar.perceived_pos, this.cur_dims, bar.dims) && this.y_pos+this.cur_dims[1] <= bar.perceived_pos[1]*deep_walk_multiplier) {
+      if (landing_collide([this.std_pos[0], this.y_pos], bar.perceived_pos, this.cur_dims, bar.dims)) {
         on_anything = true;
-        if (abs(this.y_pos - (bar.perceived_pos[1] - this.cur_dims[1])) > 1 && this.yvel == 0) {
+        if (this.y_vel > 0) {
+          this.y_acc = 0;
+          this.y_vel = 0;
+        }
+        if (this.y_vel == 0) {  
           this.y_pos = bar.perceived_pos[1] - this.cur_dims[1];
         }
       }
     }
     if (this.y_pos >= this.std_pos[1]) {
       on_anything = true;
-      if (abs(this.y_pos - this.std_pos[1]) > 1 && this.yvel == 0) {
-        this.y_pos = this.std_pos[1];//Probably wrong
+      if (this.y_vel > 0) {
+        this.y_acc = 0;
+        this.y_vel = 0;
+      }
+      if (this.y_vel == 0) {
+        this.y_pos = this.std_pos[1];
       }
     }
     return on_anything;
   }
   this.jump = function() {
-    if (this.onSurface() && level.envi == "play" && (millis() - flag_time) > first_lag_time && this.move_state == 'run') {
-      this.y_vel = -this.jump_speed;
+    if (level.envi == "play" && (millis() - flag_time) > first_lag_time) { 
+      if (this.onSurface() && this.move_state == 'run') {
+        this.y_vel = -this.jump_speed;
+      }
     }
   }
   this.update = function(dt) {
     if (this.y_pos < 0) {
-      this.y_vel = 0.75*abs(this.y_vel); //Bounce with a little dampening
+      this.y_vel = 0.5*abs(this.y_vel); //Bounce with a little dampening
     }
     this.y_pos += this.y_vel*dt;
     this.y_vel += this.y_acc*dt;
     this.ani_state = (this.ani_state + 0.3) % this.run_anis;
-    if (this.onSurface()) {
-      this.y_acc = 0;
-      this.y_vel = 0;
-    }
-    else {
+    if(!this.onSurface()) {
       this.y_acc = gravity;
     }
     if (this.y_vel != 0) {
       this.ani_state = 0;
+    }
+    if (this.move_state == 'roll') {
+      this.theta -= (scroll_speed/(5*this.cur_dims[0]+1))*dt;
     }
   }
   this.display = function() {
@@ -570,7 +623,7 @@ function Player() {
       push();
       translate(this.std_pos[0], this.y_pos);
       scale(-1, 1);
-      translate(-this.cur_dims[0], 0)
+      translate(-this.cur_dims[0], 0);
       image(cur_image, 0, 0, this.cur_dims[0], this.cur_dims[1]);
       pop();
     }
@@ -579,7 +632,10 @@ function Player() {
       push();
       translate(this.std_pos[0], this.y_pos);
       scale(-1, 1);
-      translate(-this.cur_dims[0], 0)
+      translate(-this.cur_dims[0], 0);
+      translate(this.cur_dims[0]/2, this.cur_dims[1]/2);
+      rotate(this.theta);
+      translate(-this.cur_dims[0]/2, -this.cur_dims[1]/2);
       image(cur_image, 0, 0, this.cur_dims[0], this.cur_dims[1]);
       pop();  
     }
@@ -588,7 +644,7 @@ function Player() {
 
 
 function Barrier() {
-  this.initialize = function(level_length, height_bounds, width_bounds) {
+  this.initialize = function(level_length, width_bounds, height_bounds) {
     var rand_bar_width = int(random(screen_dims[0]*width_bounds[0], screen_dims[0]*width_bounds[1]));
     var rand_bar_height = int(random(screen_dims[1]*height_bounds[0], screen_dims[1]*height_bounds[1]));  
     this.dims = [rand_bar_width, rand_bar_height]
@@ -616,7 +672,7 @@ function RainDrop() {
     this.ypos = yposi;
     this.yvel = yveli;
     this.yacc = gravity*0.2; //Sorry physics
-    this.dims = [random(3, 10), random(3, 20)];
+    this.dims = [random(3, 25), random(3, 45)];
     this.image_state  = 0;
   }
   this.update = function (dt) {
@@ -668,11 +724,13 @@ function Cloud() {
       triggered = true;
     }
     if (triggered) {
-      for (var i = 0; i < this.rain_thickness; i++) {
-        var luck_rain_draw = int(random(0, this.rain_thickness)/2);
-        if (luck_rain_draw == 0) {
-          this.rains.push(new RainDrop());
-          this.rains[this.rains.length - 1].initialize(this.perceived_pos[0] + i*this.dims[0]/this.rain_thickness, (-1)*this.xspeed, this.perceived_pos[1]+this.dims[1], 0);
+      if(this.rain_thickness > 1) {
+        for (var i = 1; i < this.rain_thickness; i++) {
+          var luck_rain_draw = int(random(0, this.rain_thickness)/2);
+          if (luck_rain_draw == 0) {
+            this.rains.push(new RainDrop());
+            this.rains[this.rains.length - 1].initialize(this.perceived_pos[0] + i*this.dims[0]/this.rain_thickness, (-1)*this.xspeed, this.perceived_pos[1]+this.dims[1], 0);
+          }
         }
       }
       triggered = false;
@@ -693,11 +751,19 @@ function Cloud() {
 };
 
 
-function Enemy() {
+function Shark() {
   this.initialize = function(){
+    this.ani_state = 0;
+    this.y_pos = screen_dims[1]/2;
+    this.x_pos = screen_dims[0]/2;
+    this.dims = [screen_dims[0]*0.1, screen_dims[1]*0.1]
+  }
+  this.update = function(dt){
 
   }
-  this.update = function(){
-
+  this.display = function() {
+    var cur_image = shark_images[int(this.ani_state)];
+    image(cur_image, this.x_pos, this.y_pos, this.dims[0], this.dims[1]);//Drawn from top left
   }
 };
+
